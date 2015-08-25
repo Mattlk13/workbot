@@ -1,0 +1,15 @@
+<html>
+<head>
+
+</head>
+<body>
+<h2>{{ dir_summary }}</h2>
+
+<h2>{{ base_dir }}</h2>
+<ul>
+{% for dir in git_dirs %}
+    <li>{{ dir }}</li>
+{% endfor %}
+</ul>
+</body>
+</html>
