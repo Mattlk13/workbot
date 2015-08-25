@@ -5,11 +5,36 @@
 <body>
 <h2>{{ dir_summary }}</h2>
 
-<h2>{{ base_dir }}</h2>
-<ul>
-{% for dir in git_dirs %}
-    <li>{{ dir }}</li>
-{% endfor %}
-</ul>
+<table>
+    <thead>
+    <tr>
+        <th>Dir</th>
+        <th>last fetch</th>
+        <th>Status</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for git_dir in git_obj_list %}
+        <tr>
+            <td>{{ git_dir }}</td>
+            <td>{{ git_dir.last_fetch }}</td>
+            <td>
+                {% if git_dir.status %}
+
+                    <ul>
+                        {% for s in git_dir.status %}
+                            <li>{{ s }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>Up to date.</p>
+                {% endif %}
+            </td>
+            <td>Actions</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
 </body>
 </html>
