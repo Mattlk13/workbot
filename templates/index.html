@@ -1,11 +1,12 @@
 <html>
 <head>
-
+    <script src="{{ url_for('static', filename='js/jquery.js') }}"></script>
+    <link href="{{ url_for('static', filename='css/bootstrap.css') }}" />
 </head>
 <body>
 <h2>{{ dir_summary }}</h2>
 
-<table>
+<table class="table table-bordered">
     <thead>
     <tr>
         <th>Dir</th>
@@ -21,10 +22,9 @@
             <td>{{ git_dir.last_fetch }}</td>
             <td>
                 {% if git_dir.status %}
-
                     <ul>
                         {% for s in git_dir.status %}
-                            <li>{{ s }}</li>
+                            <li><small>{{ s }}</small></li>
                         {% endfor %}
                     </ul>
                 {% else %}

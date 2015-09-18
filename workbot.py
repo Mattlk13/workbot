@@ -2,11 +2,13 @@ import json
 import logging
 import os
 import subprocess
+from django.utils.datetime_safe import datetime
 
 from flask import Flask, jsonify
 from flask.templating import render_template
 
-app = Flask(__name__)
+app = Flask(__name__, instance_relative_config=True)
+app.config.from_object('config')
 
 
 class GitDir(object):
@@ -48,31 +50,32 @@ def find_git_dirs(base_dir):
     for root, dirs, files in os.walk(base_dir):
         if '.git' in dirs:
             all_git_dirs.append(root)
-
     return all_git_dirs
 
 
-def create_cache_file(param):
-    cache_file = '/tmp/gitdirs.json'
-    if not os.path.isfile(cache_file):
-        with open(cache_file, 'w+') as c_file:
-            c_file.write(json.dumps(param))
+def read_json_from_cache_file(cache_file):
+    with open(cache_file, 'r') as c_file:
+        return json.load(c_file)
+
+
+def write_json_to_cache_file(json_data, cache_file):
+    with open(cache_file, 'w+') as c_file:
+        c_file.write(json.dumps(json_data))
 
 
 def get_cached_dirs(base_dir, update_cache):
     """
-    Reads a file that is the list of the directories found. This is what we use without refrshing the list
+    Reads a file that is the list of the directories found. This is what we use without refreshing the list
     :return: list of directories
     """
 
-    cache_file = '/tmp/gitdirs.json'
+    cache_file = app.config.get('GIT_CACHE_FILE')
 
     if os.path.isfile(cache_file) and not update_cache:
-        with open(cache_file, 'r') as c_file:
-            return json.load(c_file)
+        return read_json_from_cache_file(cache_file)
     else:
         dir_obj = {'base_dir': base_dir, 'git_dirs': find_git_dirs(base_dir)}
-        create_cache_file(dir_obj)
+        write_json_to_cache_file(dir_obj, cache_file)
         return dir_obj
 
 
@@ -86,7 +89,6 @@ def verify_git_dir(git_dir):
             subprocess.check_call(['git', 'rev-parse', '--is-inside-work-tree'])
             return True
         except subprocess.CalledProcessError as e:
-
             app.logger.info('Directory [{}] is not a GIT dir.'.format(git_dir))
             return False
 
@@ -110,7 +112,7 @@ def get_last_fetch_time(git_dir):
         try:
             mtime = os.stat('.git/FETCH_HEAD').st_mtime
             app.logger.debug('{} -> mtime: {}'.format(git_dir, mtime))
-            return mtime
+            return datetime.fromtimestamp(mtime)
         except FileNotFoundError as e:
             app.logger.warn('[{}] : FETCH_HEAD not found.'.format(git_dir))
             return None
@@ -133,6 +135,12 @@ def hello_world():
 
     context['dir_summary'] = get_git_status(context.get('git_dirs')[1])
     return render_template('index.html', **context)
+
+
+@app.route('/config')
+def config_file():
+    context = {'config': app.config.items()}
+    return render_template('config.html', **context)
 
 
 if __name__ == '__main__':
