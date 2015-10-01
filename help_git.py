@@ -54,14 +54,6 @@ logger = logging.getLogger('helpGit')
 
 
 
-def fetch_on_git_dir(gd):
-    with ChDir(gd.directory):
-        try:
-            logger.info('Starting to run FETCH.')
-            return subprocess.check_call(['git', 'fetch', '--progress', '--verbose'])
-        except subprocess.CalledProcessError as e:
-            logger.warning('Directory [{}] Could not fetch GIT data.'.format(gd))
-
 
 def find_git_dirs(base_dir):
     """
@@ -105,8 +97,7 @@ def main():
         gd = GitDirectory(git_path)
 
         if args.fetch:
-            logger.debug('Fetching GIT info.')
-            fetch_on_git_dir(gd)
+            gd.fetch_on_git_dir()
 
         gd.get_last_fetch_time()
         gd.get_git_status(short=args.short)

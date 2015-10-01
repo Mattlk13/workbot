@@ -59,6 +59,14 @@ class GitDirectory(object):
             if any(git_log_entry.get('id') for git_log_entry in git_log_entries):
                 logger.debug('git logs: {}'.format(git_log_entries))
                 self.week_log = git_log_entries
+    def fetch_on_git_dir(self):
+        with ChDir(self.directory):
+            try:
+                logger.info('Starting to run FETCH on {}.'.format(self))
+                return subprocess.check_call(['git', 'fetch', '--progress', '--verbose'])
+            except subprocess.CalledProcessError as e:
+                logger.warning('Directory [{}] Could not FETCH.'.format(self.directory))
+
 
     def _verify_git_dir(self):
         with ChDir(self.directory):
