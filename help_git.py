@@ -48,66 +48,17 @@ parser.add_argument('--verbose', '-v', action='store_true', default=False, dest=
 logging.config.dictConfig(LOGGING)
 logger = logging.getLogger('helpGit')
 
-GIT_COMMIT_FIELDS = ['id', 'author_name', 'author_email', 'date', 'message']
-GIT_LOG_FORMAT = ['%H', '%an', '%ae', '%ad', '%s']
-GIT_LOG_FORMAT = '%x1f'.join(GIT_LOG_FORMAT) + '%x1e'
-
-
-def verify_git_dir(git_dir):
-    with ChDir(git_dir):
-        try:
-            p = subprocess.check_call(['git', 'rev-parse', '--is-inside-work-tree'], stdout=subprocess.DEVNULL)
-            logger.debug('Verify Dir is indeed a git dir: {}'.format(git_dir))
-            if p == 0:
-                return True
-            else:
-                return False
-        except subprocess.CalledProcessError as e:
-            logger.error('Directory [{}] is not a GIT dir.'.format(git_dir))
-            return False
-
-
-def get_git_status(gd, short=False):
-    """
-     Uses git binary to get the information on the specified directory.
-
-    :param gd: a known GIT directory
-    :type gd GitDirectory
-    :return: a git summary for the repository
-    """
-    cmd_args = ['git', 'status', '--branch']
-
-    with ChDir(gd.directory):
-        if short:
-            cmd_args.append('--porcelain')
-        logger.debug(cmd_args)
-
-        return subprocess.check_output(cmd_args)
 
 
 
 
-def get_git_log(gd, since, max_count=50):
-    with ChDir(gd.directory):
-        p = subprocess.Popen(
-            u'git log --max-count={1:d} --since="{2:s}" --format="{0:s}"'.format(GIT_LOG_FORMAT, max_count, since),
-            shell=True,
-            stdout=subprocess.PIPE
-        )
-        logger.debug('Running git log: {}'.format(p.args))
-        (git_log_entries, _) = p.communicate()
-        git_log_entries = git_log_entries.strip(b'\n\x1e').split(b"\x1e")
-        git_log_entries = [row.strip().split(b"\x1f") for row in git_log_entries]
-        git_log_entries = [dict(zip(GIT_COMMIT_FIELDS, row)) for row in git_log_entries]
-        if any(git_log_entry.get('id') for git_log_entry in git_log_entries):
-            logger.debug('git logs: {}'.format(git_log_entries))
-            return git_log_entries
 
 
 def fetch_on_git_dir(gd):
     with ChDir(gd.directory):
         try:
-            return subprocess.check_call(['git', 'fetch'])
+            logger.info('Starting to run FETCH.')
+            return subprocess.check_call(['git', 'fetch', '--progress', '--verbose'])
         except subprocess.CalledProcessError as e:
             logger.warning('Directory [{}] Could not fetch GIT data.'.format(gd))
 
@@ -152,12 +103,14 @@ def main():
 
     for git_path in find_git_dirs(args.base_path):
         gd = GitDirectory(git_path)
+
         if args.fetch:
+            logger.debug('Fetching GIT info.')
             fetch_on_git_dir(gd)
 
         gd.get_last_fetch_time()
-        gd.status = get_git_status(gd, args.short)
-        gd.week_log = get_git_log(gd, "a week ago")
+        gd.get_git_status(short=args.short)
+        gd.set_git_log("a week ago")
 
         print_the_stuff(gd)
 
