@@ -6,36 +6,11 @@ from django.utils.datetime_safe import datetime
 
 from flask import Flask, jsonify
 from flask.templating import render_template
+from utils import ChDir, GitDir
 
 app = Flask(__name__, instance_relative_config=True)
 app.config.from_object('config')
 
-
-class GitDir(object):
-    def __init__(self, git_dir):
-        self.directory = git_dir
-
-    def __str__(self):
-        return self.directory
-
-    def __unicode__(self):
-        return self.directory
-
-
-class ChDir(object):
-    """
-    Step into a directory temporarily.
-    """
-
-    def __init__(self, path):
-        self.old_dir = os.getcwd()
-        self.new_dir = path
-
-    def __enter__(self):
-        os.chdir(self.new_dir)
-
-    def __exit__(self, *args):
-        os.chdir(self.old_dir)
 
 
 def find_git_dirs(base_dir):
