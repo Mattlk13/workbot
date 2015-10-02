@@ -48,13 +48,6 @@ parser.add_argument('--verbose', '-v', action='store_true', default=False, dest=
 logging.config.dictConfig(LOGGING)
 logger = logging.getLogger('helpGit')
 
-
-
-
-
-
-
-
 def find_git_dirs(base_dir):
     """
     Walks the base_dir to find all git directories.
@@ -77,7 +70,7 @@ def print_the_stuff(gd):
     :type gd GitDirectory
     :return:
     """
-    print('DIR: {}'.format(gd.directory))
+    print('####{:_^100}####'.format(gd.directory))
     if gd.week_log:
         for log_item in gd.week_log:
             for k, v in log_item:
@@ -85,7 +78,9 @@ def print_the_stuff(gd):
     for line in gd.status.splitlines():
         print(line.decode('utf-8'))
 
-
+def print_stats(list_of_git_dir_objects):
+    total_repos = len(list_of_git_dir_objects)
+    
 def main():
     args = parser.parse_args()
     if args.debug:
@@ -102,11 +97,12 @@ def main():
         gd.get_last_fetch_time()
         gd.get_git_status(short=args.short)
         gd.set_git_log("a week ago")
-
-        print_the_stuff(gd)
-
-        logger.debug('--------------------------------------')
         repos.append(gd)
+        print('Processed GitDir: {}'.format(gd))
+
+    for index, gd in enumerate(repos):
+        print_the_stuff(gd)
+    print_stats(repos)
 
 
 if __name__ == '__main__':

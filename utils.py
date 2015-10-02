@@ -13,7 +13,8 @@ class GitDirectory(object):
     week_log = None
     status = None
     last_fetch = None
-
+    up_to_date = False
+    
     def __init__(self, git_dir):
         self.directory = git_dir
         self._verify_git_dir()
