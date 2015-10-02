@@ -40,6 +40,8 @@ LOGGING = {
 parser = argparse.ArgumentParser()
 parser.add_argument('base_path', help='The base directory to search through')
 parser.add_argument('--short', '-s', action='store_true', default=False, help='The base directory to search through')
+parser.add_argument('--color', '-c', action='store_true', default=False, help='Print text with color.')
+parser.add_argument('--more', '-m', action='store_true', default=False, help='Expand logs and status summaries to give more details on repository.')
 parser.add_argument('--fetch', '-f', action='store_true', default=False,
                     help='For every git dir we find, run "git fetch".')
 parser.add_argument('--verbose', '-v', action='store_true', default=False, dest='verbose',
@@ -62,6 +64,15 @@ def find_git_dirs(base_dir):
         if '.git' in dirs:
             yield root
 
+class BColors(object):
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+
 
 def print_the_stuff(gd, show_logs=False):
     """
@@ -70,24 +81,29 @@ def print_the_stuff(gd, show_logs=False):
     :type gd GitDirectory
     :return:
     """
-    print('#{:_^100}#'.format(gd.directory))
+    print(BColors.HEADER + '{:*^120}'.format(gd.directory) + BColors.ENDC)
     if gd.logs and show_logs:
-        pprint(gd.logs)
+        pprint(BColors.OKBLUE + gd.logs + BColors.ENDC)
 
+    print(BColors.WARNING + '\nStatus:' + BColors.ENDC)
     for line in gd.status.splitlines():
-        print(line.decode('utf-8'))
+        print('\t' + line.decode('ascii'))
 
     if gd.queued_commits:
-        print('\nQueued commits:')
-        pprint(gd.get_queued_commits_logs())
-
-    else:
-        print('\nNo Queued commits.')
-
+        commits = gd.get_queued_commits_logs()
+        print(BColors.WARNING + '\nQueued commits: ' + BColors.ENDC + '{}'.format(gd.status.splitlines()[0].decode("ascii")))
+        for commit_log in commits:
+            print('\t| {blue}{commit_id}{endc} {:<84}'.format(commit_log['message'].decode("ascii"),commit_id=commit_log['id'].decode("ascii"),  blue=BColors.OKBLUE, endc=BColors.ENDC))
 
 def print_stats(list_of_git_dir_objects):
     total_repos = len(list_of_git_dir_objects)
 
+def print_colors():
+    print(BColors.HEADER + ' HEADER' + BColors.ENDC)
+    print(BColors.OKBLUE + ' OKBLUE' + BColors.ENDC)
+    print(BColors.OKGREEN + ' OKGREEN' + BColors.ENDC)
+    print(BColors.WARNING + ' WARNING' + BColors.ENDC)
+    print(BColors.FAIL + ' FAIL' + BColors.ENDC)
 def main():
     args = parser.parse_args()
     if args.verbose:
@@ -102,17 +118,18 @@ def main():
             gd.fetch_on_git_dir()
 
         gd.get_last_fetch_time()
-        gd.get_git_status(verbose=args.verbose)
+        gd.get_git_status(more=args.more)
         gd.get_log()
         gd.get_queued_commits()
 
         repos.append(gd)
-        print('Processed GitDir: {}'.format(gd))
+        print('{green}Processed GitDir: {}{endc}'.format(gd, green=BColors.OKGREEN, endc=BColors.ENDC))
 
     for index, gd in enumerate(repos):
         print_the_stuff(gd)
     print_stats(repos)
-
+    print()
+    print_colors()
 
 if __name__ == '__main__':
     main()

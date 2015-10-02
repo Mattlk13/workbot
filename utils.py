@@ -14,16 +14,19 @@ class GitDirectory(object):
     status = None
     last_fetch = None
     queued_commits = []
-    remote = None
+    remotes = []
+
     def __init__(self, git_dir):
+        self.git_cmd = 'git'
         self.directory = os.path.abspath(git_dir)
         self._verify_git_dir()
-        self.set_remote()
+        self.remotes = self.set_remote()
+
 
     def set_remote(self):
-        cmd = ['git', 'remote', '-v']
+        cmd = [self.git_cmd, 'remote', '-v']
         with ChDir(self.directory):
-            self.remote = subprocess.check_output(cmd)
+            return subprocess.check_output(cmd).splitlines()
 
     def get_last_fetch_time(self):
         with ChDir(self.directory):
@@ -36,7 +39,7 @@ class GitDirectory(object):
             except FileNotFoundError as e:
                 logger.warning('[{}] : FETCH_HEAD not found.'.format(self.directory))
 
-    def get_git_status(self, verbose=False):
+    def get_git_status(self, more=False):
         """
          Uses git binary to get the information on the specified directory.
 
@@ -44,23 +47,40 @@ class GitDirectory(object):
         :type gd GitDirectory
         :return: a git summary for the repository
         """
-        cmd_args = ['git', 'status', '--branch']
+        cmd_args = u'{} -c color.ui=always -c color.status=always status --branch '.format(self.git_cmd)
+        if not more:
+            cmd_args += '--short'
         with ChDir(self.directory):
-            if not verbose:
-                cmd_args.append('--porcelain')
+
             logger.debug('Running status command: {}'.format(cmd_args))
-            self.status = subprocess.check_output(cmd_args)
+            proc = subprocess.Popen(
+                cmd_args,
+                shell=True,
+                stdout=subprocess.PIPE
+            )
+            logger.debug('Running git status: {}'.format(proc.args))
+            try:
+                outs, errs = proc.communicate(timeout=15)
+                self.status = outs
+            except TimeoutExpired:
+                logger.warning('Timout getting git status.')
+                proc.kill()
+
 
     def get_queued_commits(self):
         """
         Ffinding the commits that are not pushed to the origin remote
             http://stackoverflow.com/questions/2969214/git-programmatically-know-by-how-much-the-branch-is-ahead-behind-a-remote-branc
         """
-        if not self.last_fetch:
-            logger.warning('Since fetch was found, we cant rely on the rev-list to be accruate. SKIPPING queued commits')
-            return
-        cmd_args = ['git', 'rev-list', '@{u}..']
         with ChDir(self.directory):
+
+            try:
+                subprocess.check_call([self.git_cmd, 'rev-parse', '--quiet', '@{u}..' ])
+                logger.debug('Verify Dir Has an upstream branch: {}'.format(self.directory))
+            except subprocess.CalledProcessError as e:
+                logger.exception(e)
+                return
+            cmd_args = [self.git_cmd, 'rev-list', '@{u}..']
             logger.debug('Running command: {}'.format(cmd_args))
             self.queued_commits = subprocess.check_output(cmd_args).splitlines()
 
@@ -71,7 +91,7 @@ class GitDirectory(object):
 
     def get_log(self, since=None, max_count=50):
         with ChDir(self.directory):
-            log_cmd = u'git log --max-count={1:d} --format="{0:s}"'.format(GIT_LOG_FORMAT, max_count),
+            log_cmd = u'{git} log --max-count={1:d} --format="{0:s}"'.format(GIT_LOG_FORMAT, max_count, git=self.git_cmd),
             if since:
                 log_cmd += u' --since="{0:s}"'.format(since)
             p = subprocess.Popen(
@@ -91,7 +111,7 @@ class GitDirectory(object):
     def fetch_on_git_dir(self):
         with ChDir(self.directory):
             try:
-                logger.info('Starting to run FETCH on {}.'.format(self))
+                logger.debug('Starting to run FETCH on {}.'.format(self))
                 return subprocess.check_call(['git', 'fetch', '--progress', '--verbose'])
             except subprocess.CalledProcessError as e:
                 logger.warning('Directory [{}] Could not FETCH.'.format(self.directory))
@@ -100,16 +120,11 @@ class GitDirectory(object):
     def _verify_git_dir(self):
         with ChDir(self.directory):
             try:
-                p = subprocess.check_call(['git', 'rev-parse', '--is-inside-work-tree'], stdout=subprocess.DEVNULL)
+                subprocess.check_call([self.git_cmd, 'rev-parse', '--is-inside-work-tree'], stdout=subprocess.DEVNULL)
                 logger.debug('Verify Dir is indeed a git dir: {}'.format(self.directory))
-                if p == 0:
-                    return True
-                else:
-                    return False
             except subprocess.CalledProcessError as e:
                 logger.error('Directory [{}] is not a GIT dir.'.format(self.directory))
-                return False
-
+                logger.exception(e)
 
     def __str__(self):
         return self.directory
@@ -128,9 +143,9 @@ class ChDir(object):
         self.new_dir = path
 
     def __enter__(self):
-        logger.debug('Change Dir: {}'.format(self.new_dir))
+        logger.debug('Enter Dir: {}'.format(self.new_dir))
         os.chdir(self.new_dir)
 
     def __exit__(self, *args):
-        logger.debug('Change Dir: {}'.format(self.old_dir))
+        logger.debug('Exit Dir: {}'.format(self.old_dir))
         os.chdir(self.old_dir)
