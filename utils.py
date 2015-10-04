@@ -73,7 +73,6 @@ class GitDirectory(object):
             http://stackoverflow.com/questions/2969214/git-programmatically-know-by-how-much-the-branch-is-ahead-behind-a-remote-branc
         """
         with ChDir(self.directory):
-
             try:
                 subprocess.check_call([self.git_cmd, 'rev-parse', '--quiet', '@{u}..' ])
                 logger.debug('Verify Dir Has an upstream branch: {}'.format(self.directory))
@@ -109,12 +108,20 @@ class GitDirectory(object):
                 self.logs = git_log_entries
 
     def fetch_on_git_dir(self):
+        cmd = '{} fetch --progress --verbose'.format(self.git_cmd)
         with ChDir(self.directory):
+            logger.debug('Starting to run FETCH on {}.'.format(self))
+            proc = subprocess.Popen(
+                cmd,
+                shell=True,
+                stdout=subprocess.DEVNULL
+            )
             try:
-                logger.debug('Starting to run FETCH on {}.'.format(self))
-                return subprocess.check_call(['git', 'fetch', '--progress', '--verbose'])
-            except subprocess.CalledProcessError as e:
+                outs, errs = proc.communicate(timeout=15)
+                self.status = outs
+            except subprocess.TimeoutExpired:
                 logger.warning('Directory [{}] Could not FETCH.'.format(self.directory))
+                proc.kill()
 
 
     def _verify_git_dir(self):

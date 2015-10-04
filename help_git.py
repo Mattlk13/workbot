@@ -129,7 +129,5 @@ def main():
         print_the_stuff(gd)
     print_stats(repos)
     print()
-    print_colors()
-
 if __name__ == '__main__':
     main()
