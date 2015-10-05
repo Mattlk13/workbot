@@ -8,6 +8,17 @@ GIT_COMMIT_FIELDS = ['id', 'author_name', 'author_email', 'date', 'message']
 GIT_LOG_FORMAT = ['%H', '%an', '%ae', '%ad', '%s']
 GIT_LOG_FORMAT = '%x1f'.join(GIT_LOG_FORMAT) + '%x1e'
 
+JEFF_GMAIL = "jeffreyrobertbean@gmail.com"
+JEFF_HDS = "jeff.bean@hds.com"
+
+
+def get_git_config_user_email():
+    return subprocess.check_output(['git', 'config', '--get', 'user.email'])
+
+
+def get_git_config_user_name():
+    return subprocess.check_output(['git', 'config', '--get', 'user.name'])
+
 
 class GitDirectory(object):
     logs = None
@@ -21,7 +32,6 @@ class GitDirectory(object):
         self.directory = os.path.abspath(git_dir)
         self._verify_git_dir()
         self.remotes = self.set_remote()
-
 
     def set_remote(self):
         cmd = [self.git_cmd, 'remote', '-v']
@@ -42,9 +52,6 @@ class GitDirectory(object):
     def get_git_status(self, more=False):
         """
          Uses git binary to get the information on the specified directory.
-
-        :param gd: a known GIT directory
-        :type gd GitDirectory
         :return: a git summary for the repository
         """
         cmd_args = u'{} -c color.ui=always -c color.status=always status --branch '.format(self.git_cmd)
@@ -62,35 +69,43 @@ class GitDirectory(object):
             try:
                 outs, errs = proc.communicate(timeout=15)
                 self.status = outs
-            except TimeoutExpired:
-                logger.warning('Timout getting git status.')
+            except subprocess.TimeoutExpired:
+                logger.warning('Timeout getting git status.')
                 proc.kill()
 
-
-    def get_queued_commits(self):
+    def get_queued_commits(self, author_filter=None):
         """
-        Ffinding the commits that are not pushed to the origin remote
+        Finding the commits that are not pushed to the origin remote
             http://stackoverflow.com/questions/2969214/git-programmatically-know-by-how-much-the-branch-is-ahead-behind-a-remote-branc
         """
         with ChDir(self.directory):
             try:
-                subprocess.check_call([self.git_cmd, 'rev-parse', '--quiet', '@{u}..' ])
                 logger.debug('Verify Dir Has an upstream branch: {}'.format(self.directory))
+                subprocess.check_call([self.git_cmd, 'rev-parse', '--quiet', '@{u}..'])
             except subprocess.CalledProcessError as e:
                 logger.exception(e)
                 return
-            cmd_args = [self.git_cmd, 'rev-list', '@{u}..']
+            cmd_args = [self.git_cmd, 'rev-list', ]
+            if author_filter:
+                cmd_args.extend([
+
+                    '--author="{}"'.format(get_git_config_user_email()),
+                    '--author="{}"'.format(get_git_config_user_name()),
+                ])
+            cmd_args.append('@{u}..')
             logger.debug('Running command: {}'.format(cmd_args))
             self.queued_commits = subprocess.check_output(cmd_args).splitlines()
 
     def get_queued_commits_logs(self):
         if self.logs and self.queued_commits:
             return [log for log in self.logs for queued_commit in self.queued_commits
-                if log['id'] == queued_commit]
+                    if log['id'] == queued_commit]
+        return []
 
     def get_log(self, since=None, max_count=50):
         with ChDir(self.directory):
-            log_cmd = u'{git} log --max-count={1:d} --format="{0:s}"'.format(GIT_LOG_FORMAT, max_count, git=self.git_cmd),
+            log_cmd = u'{git} log --max-count={1:d} --format="{0:s}"'.format(GIT_LOG_FORMAT, max_count,
+                                                                             git=self.git_cmd),
             if since:
                 log_cmd += u' --since="{0:s}"'.format(since)
             p = subprocess.Popen(
@@ -122,7 +137,6 @@ class GitDirectory(object):
             except subprocess.TimeoutExpired:
                 logger.warning('Directory [{}] Could not FETCH.'.format(self.directory))
                 proc.kill()
-
 
     def _verify_git_dir(self):
         with ChDir(self.directory):
