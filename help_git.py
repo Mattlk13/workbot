@@ -61,6 +61,7 @@ def find_git_dirs(base_dir):
     :return: yeild one dir at a time
     """
     for root, dirs, files in walk(base_dir):
+        print('Processing dir: {0}'.format(root[-120:]), end="\r"),
         if 'svn' in dirs:
             dirs.remove('svn')
         if '.git' in dirs:
@@ -99,7 +100,7 @@ def print_the_stuff(gd, show_logs=False):
             print('\t| {blue}{commit_id}{endc} {:<84}'.format(commit_log['message'].decode("ascii"),
                                                               commit_id=commit_log['id'].decode("ascii"),
                                                               blue=BColors.OKBLUE, endc=BColors.ENDC))
-    
+
 
 def print_stats(list_of_git_dir_objects):
     """
@@ -152,7 +153,6 @@ def main():
         gd.get_queued_commits()
 
         repos.append(gd)
-        print('{green}Processed GitDir: {}{endc}'.format(gd, green=BColors.OKGREEN, endc=BColors.ENDC))
 
     for index, gd in enumerate(repos):
         print_the_stuff(gd)

@@ -19,6 +19,22 @@ def get_git_config_user_email():
 def get_git_config_user_name():
     return subprocess.check_output(['git', 'config', '--get', 'user.name'])
 
+def run_command(cmd, stdout, timeout=15):
+    proc = subprocess.Popen(
+        cmd,
+        shell=True,
+        stdout=stdout
+    )
+    try:
+        outs, errs = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        logger.warning('Timeout running command: {}'.format(cmd))
+        proc.terminate()
+    except subprocess.CalledProcessError as e:
+        logger.exception(e)
+        print(e)
+    else:
+        return outs
 
 class GitDirectory(object):
     logs = None
@@ -43,11 +59,12 @@ class GitDirectory(object):
             logger.debug('[{}] : Git stat on git dir FETCH_HEAD file'.format(self.directory))
             try:
                 mtime = os.stat('.git/FETCH_HEAD').st_mtime
+            except FileNotFoundError as e:
+                logger.warning('[{}] : FETCH_HEAD not found.'.format(self.directory))
+            else:
                 mtime = datetime.fromtimestamp(mtime)
                 logger.debug('{} -> mtime: {}'.format(self.directory, mtime))
                 self.last_fetch = mtime
-            except FileNotFoundError as e:
-                logger.warning('[{}] : FETCH_HEAD not found.'.format(self.directory))
 
     def get_git_status(self, more=False):
         """
@@ -60,18 +77,11 @@ class GitDirectory(object):
         with ChDir(self.directory):
 
             logger.debug('Running status command: {}'.format(cmd_args))
-            proc = subprocess.Popen(
+            status_out = run_command(
                 cmd_args,
-                shell=True,
                 stdout=subprocess.PIPE
             )
-            logger.debug('Running git status: {}'.format(proc.args))
-            try:
-                outs, errs = proc.communicate(timeout=15)
-                self.status = outs
-            except subprocess.TimeoutExpired:
-                logger.warning('Timeout getting git status.')
-                proc.kill()
+            self.status = status_out
 
     def get_queued_commits(self, author_filter=None):
         """
@@ -79,22 +89,15 @@ class GitDirectory(object):
             http://stackoverflow.com/questions/2969214/git-programmatically-know-by-how-much-the-branch-is-ahead-behind-a-remote-branc
         """
         with ChDir(self.directory):
-            try:
-                logger.debug('Verify Dir Has an upstream branch: {}'.format(self.directory))
-                subprocess.check_call([self.git_cmd, 'rev-parse', '--quiet', '@{u}..'])
-            except subprocess.CalledProcessError as e:
-                logger.exception(e)
-                return
-            cmd_args = [self.git_cmd, 'rev-list', ]
+            logger.debug('Verify Dir Has an upstream branch: {}'.format(self.directory))
+            run_command('{} rev-parse --quiet @{{u}}..'.format(self.git_cmd), subprocess.PIPE)
+            cmd_args = "{} rev-list".format(self.git_cmd)
             if author_filter:
-                cmd_args.extend([
-
-                    '--author="{}"'.format(get_git_config_user_email()),
-                    '--author="{}"'.format(get_git_config_user_name()),
-                ])
-            cmd_args.append('@{u}..')
+                for author in (get_git_config_user_email(), get_git_config_user_name()):
+                    cmd_args += ' --author="{}" '.format(author)
+            cmd_args += ' @{u}..'
             logger.debug('Running command: {}'.format(cmd_args))
-            self.queued_commits = subprocess.check_output(cmd_args).splitlines()
+            self.queued_commits = run_command(cmd_args, subprocess.PIPE).splitlines()
 
     def get_queued_commits_logs(self):
         if self.logs and self.queued_commits:
