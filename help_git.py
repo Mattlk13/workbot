@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 import argparse
 import logging
 import logging.config
@@ -47,12 +48,16 @@ parser.add_argument('--fetch', '-f', action='store_true', default=False,
                     help='For every git dir we find, run "git fetch".')
 parser.add_argument('--verbose', '-v', action='store_true', default=False, dest='verbose',
                     help='The base directory to search through')
+parser.add_argument('--exclude', nargs='+', help='A list of directory names to exclude.')
+
+parser.add_argument('--outfile', nargs='?', type=argparse.FileType('w'), default=sys.stdout)
+
 
 logging.config.dictConfig(LOGGING)
 logger = logging.getLogger('helpGit')
 
 
-def find_git_dirs(base_dir):
+def find_git_dirs(base_dir, exclude_dirs_regex):
     """
     Walks the base_dir to find all git directories.
 
@@ -60,10 +65,9 @@ def find_git_dirs(base_dir):
     :type base_dir str
     :return: yeild one dir at a time
     """
-    for root, dirs, files in walk(base_dir):
+    for root, dirs, files in walk(base_dir, topdown=True):
+        dirs[:] = [d for d in dirs if d not in exclude_dirs_regex]
         print('Processing dir: {0}'.format(root[-120:]), end="\r"),
-        if 'svn' in dirs:
-            dirs.remove('svn')
         if '.git' in dirs:
             yield root
 
@@ -140,8 +144,8 @@ def main():
         logger.setLevel(logging.DEBUG)
 
     repos = []
-
-    for git_path in find_git_dirs(args.base_path):
+    exclude_dirs_regex = args.exclude
+    for git_path in find_git_dirs(args.base_path, exclude_dirs_regex):
         gd = GitDirectory(git_path)
 
         if args.fetch:
